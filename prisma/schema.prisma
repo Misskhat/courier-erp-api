@@ -39,12 +39,12 @@ model PasswordResetToken {
 
 
 model EmailVerificationToken {
-  id Int @id @default(autoincrement())
-  token String @unique
-  user User @relation(fields: [userId], references: [id])
-  userId Int @map("user_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  expiresAt DateTime @map("expires_at")
+  id          Int         @id @default(autoincrement())
+  token       String      @unique
+  user        User        @relation(fields: [userId], references: [id])
+  userId      Int         @map("user_id")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  expiresAt   DateTime    @map("expires_at")
 
   @@map("email_verification_token")
 }
