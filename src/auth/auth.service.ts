@@ -1,8 +1,13 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 
 @Injectable()
 export class AuthService {
@@ -60,6 +65,55 @@ export class AuthService {
         email: user.email,
         isVerified: user.isVerified,
       },
+    };
+  }
+
+  async verifyEmail(verifyEmailDto: VerifyEmailDto) {
+    const { email, token } = verifyEmailDto;
+
+    const verificationToken =
+      await this.prisma.emailVerificationToken.findUnique({
+        where: {
+          token,
+        },
+        include: {
+          user: true,
+        },
+      });
+
+    if (!verificationToken) {
+      throw new BadRequestException('Invalid verification token');
+    }
+
+    if (verificationToken.user.email !== email) {
+      throw new BadRequestException('Invalid verification email');
+    }
+
+    if (new Date() > verificationToken.expiresAt) {
+      throw new BadRequestException('Verification token expired');
+    }
+
+    if (verificationToken.user.isVerified) {
+      throw new BadRequestException('Email already verify');
+    }
+
+    await this.prisma.user.update({
+      where: {
+        id: verificationToken.userId,
+      },
+      data: {
+        isVerified: true,
+      },
+    });
+
+    await this.prisma.emailVerificationToken.delete({
+      where: {
+        id: verificationToken.userId,
+      },
+    });
+
+    return {
+      message: 'Email verified successfully',
     };
   }
 }
