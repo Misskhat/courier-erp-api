@@ -108,7 +108,7 @@ export class AuthService {
 
     await this.prisma.emailVerificationToken.delete({
       where: {
-        id: verificationToken.userId,
+        id: verificationToken.id,
       },
     });
 
