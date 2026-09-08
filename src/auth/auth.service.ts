@@ -10,10 +10,14 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { LoginDto } from './dto/login.dto';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
   async register(registerDto: RegisterDto) {
     const { name, email, password } = registerDto;
 
@@ -142,8 +146,16 @@ export class AuthService {
       throw new UnauthorizedException('Password not match');
     }
 
+    const payload = {
+      sub: user.id,
+      email: user.email,
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+
     return {
       message: 'Login successfully',
+      accessToken,
       user: {
         id: user.id,
         name: user.name,
