@@ -1,8 +1,17 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { LoginDto } from './dto/login.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import type { Request as ExpressRequest } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -21,5 +30,11 @@ export class AuthController {
   @Post('login')
   login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
+  }
+
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  profile(@Request() req: ExpressRequest) {
+    return { message: 'your are authenticated', user: req.user };
   }
 }
