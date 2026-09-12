@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
@@ -11,6 +12,8 @@ import { randomBytes } from 'crypto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -162,5 +165,83 @@ export class AuthService {
         email: user.email,
       },
     };
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    const { email } = forgotPasswordDto;
+
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await this.prisma.passwordResetToken.create({
+      data: {
+        token,
+        userId: user.id,
+        expiresAt,
+      },
+    });
+
+    return { message: 'Password reset token generate sucessfully.', token };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    const { token, password } = resetPasswordDto;
+
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: {
+        token,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!resetToken) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    if (new Date() > resetToken.expiresAt) {
+      throw new BadRequestException('Reset token expired');
+    }
+
+    const isPasswordSame = await bcrypt.compare(
+      password,
+      resetToken.user.password,
+    );
+
+    if (isPasswordSame) {
+      throw new BadRequestException(
+        'New Passworld can not be the same old password',
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await this.prisma.user.update({
+      where: {
+        id: resetToken.userId,
+      },
+      data: {
+        password: hashedPassword,
+      },
+    });
+
+    await this.prisma.passwordResetToken.delete({
+      where: {
+        id: resetToken.id,
+      },
+    });
+
+    return { message: 'Password reset successfully' };
   }
 }
