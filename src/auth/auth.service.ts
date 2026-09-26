@@ -14,6 +14,7 @@ import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ERRORS } from '../errors';
 
 @Injectable()
 export class AuthService {
@@ -45,6 +46,7 @@ export class AuthService {
         name,
         email,
         password: hashedPassword,
+        isVerified: false,
       },
     });
 
@@ -84,6 +86,7 @@ export class AuthService {
       await this.prisma.emailVerificationToken.findUnique({
         where: {
           token,
+          email,
         },
         include: {
           user: true,
@@ -106,6 +109,7 @@ export class AuthService {
       throw new BadRequestException('Email already verify');
     }
 
+    // TODO: use transaction
     await this.prisma.user.update({
       where: {
         id: verificationToken.userId,
@@ -191,7 +195,9 @@ export class AuthService {
       },
     });
 
-    return { message: 'Password reset token generate sucessfully.', token };
+    // send email to user
+
+    return { message: 'Password reset token generate successfully.', token };
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
@@ -220,26 +226,26 @@ export class AuthService {
     );
 
     if (isPasswordSame) {
-      throw new BadRequestException(
-        'New Passworld can not be the same old password',
-      );
+      throw new BadRequestException(ERRORS.PASS_NOT_MATCHED);
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await this.prisma.user.update({
-      where: {
-        id: resetToken.userId,
-      },
-      data: {
-        password: hashedPassword,
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: {
+          id: resetToken.userId,
+        },
+        data: {
+          password: hashedPassword,
+        },
+      });
 
-    await this.prisma.passwordResetToken.delete({
-      where: {
-        id: resetToken.id,
-      },
+      await tx.passwordResetToken.delete({
+        where: {
+          id: resetToken.id,
+        },
+      });
     });
 
     return { message: 'Password reset successfully' };
